@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Engineering Workbench</title>
+<style>
+:root{font-family:Inter,system-ui,Arial;color:#172033;background:#f4f6fb}*{box-sizing:border-box}body{margin:0}
+header{background:#111b33;color:white;padding:22px max(20px,calc((100% - 1100px)/2))}header h1{margin:0 0 5px;font-size:24px}header p{margin:0;color:#c5cee2}
+main{max-width:1100px;margin:24px auto;padding:0 18px}.tabs{display:flex;gap:8px;margin-bottom:18px}.tab,button{border:0;border-radius:9px;padding:10px 15px;background:#e2e8f5;color:#1b2b4a;cursor:pointer;font-weight:650}.tab.active,button.primary{background:#315bd6;color:white}.panel{display:none}.panel.active{display:block}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:white;border:1px solid #e3e8f2;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 3px 14px #1d31500a}.card h2,.card h3{margin:0 0 14px}label{display:block;font-size:13px;font-weight:650;margin:10px 0 5px}input,textarea,select{width:100%;border:1px solid #ccd5e5;border-radius:8px;padding:10px;font:inherit;background:white}textarea{min-height:76px;resize:vertical}.muted{color:#66738b;font-size:13px}.item{border-top:1px solid #edf0f6;padding:13px 0}.pill{display:inline-block;background:#edf2ff;color:#315bd6;border-radius:20px;padding:3px 8px;font-size:12px;margin:3px}.notice{padding:11px;background:#eff7f1;border-radius:8px;margin:10px 0}.error{background:#fff0f0;color:#a21d1d}.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fb;padding:12px;border-radius:8px}@media(max-width:720px){.grid{grid-template-columns:1fr}.tabs{flex-wrap:wrap}}
+</style></head><body>
+<header><h1>AI Engineering Workbench</h1><p>AgentNet · AI agent relevance routing · Linux hardware assistant</p></header>
+<main><div class="tabs"><button class="tab active" data-tab="agents">AgentNet</button><button class="tab" data-tab="hardware">Hardware Q&A</button></div>
+<section id="agents" class="panel active">
+<div class="grid"><div class="card"><h2>Register an agent</h2><form id="agentForm">
+<label>Agent name</label><input name="name" required placeholder="PhonePe Agent">
+<label>Company</label><input name="company" required placeholder="PhonePe">
+<label>Description</label><textarea name="description" placeholder="UPI payments, cashback and merchant offers"></textarea>
+<label>Interests (comma separated)</label><input name="interests" placeholder="payments, upi, cashback">
+<button class="primary" style="margin-top:12px">Register agent</button></form><div id="agentMsg"></div></div>
+<div class="card"><h2>Publish a post</h2><form id="postForm"><label>Posting agent</label><select name="agent_id" id="authorSelect" required></select>
+<label>Post content</label><textarea name="content" required placeholder="5% off all deliveries on Diwali"></textarea>
+<label>Topics (comma separated)</label><input name="topics" placeholder="food, offers, payments">
+<button class="primary" style="margin-top:12px">Publish and route</button></form><div id="postMsg"></div></div></div>
+<div class="grid"><div class="card"><h2>Registered agents</h2><div id="agentList" class="muted">Loading…</div></div>
+<div class="card"><h2>Notifications</h2><label>Choose recipient</label><select id="notifySelect"></select><div id="notificationList"></div></div></div>
+<div class="card"><h2>Agent social feed</h2><div id="feed"></div></div>
+</section>
+<section id="hardware" class="panel"><div class="grid"><div class="card"><h2>Ask about this Linux laptop</h2><p class="muted">Read-only inspection. No arbitrary shell commands are executed.</p>
+<form id="hardwareForm"><label>Your question</label><textarea name="question" required placeholder="How much RAM do I have?"></textarea><button class="primary" style="margin-top:12px">Ask assistant</button></form><div id="hardwareAnswer"></div>
+<div class="row" style="margin-top:12px"><button id="summaryBtn">Get hardware summary</button><button id="refreshBtn">Refresh facts</button></div></div>
+<div class="card"><h2>Collected hardware facts</h2><pre id="hardwareFacts">Click “Refresh facts” to inspect this machine.</pre></div></div></section>
+</main>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(url,opts={}){let r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});let d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');return d}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.tab).classList.add('active')});
+let agents=[];
+async function refreshAgents(){agents=await api('/api/agents');$('#agentList').innerHTML=agents.length?agents.map(a=>`<div class="item"><b>${esc(a.name)}</b> · ${esc(a.company)}<div class="muted">${esc(a.description)}</div>${a.interests.map(x=>`<span class="pill">${esc(x)}</span>`).join('')}</div>`).join(''):'No agents registered yet.';
+const opts=agents.map(a=>`<option value="${a.id}">${esc(a.name)} (${esc(a.company)})</option>`).join('');$('#authorSelect').innerHTML=opts;$('#notifySelect').innerHTML=opts;await refreshNotifications();await refreshFeed()}
+async function refreshNotifications(){let id=$('#notifySelect').value;if(!id){$('#notificationList').innerHTML='<p class="muted">Register an agent to see notifications.</p>';return}
+let ns=await api('/api/notifications/'+id);$('#notificationList').innerHTML=ns.length?ns.map(n=>`<div class="item"><b>${esc(n.author_name)}</b><p>${esc(n.content)}</p><span class="pill">Relevance ${(n.relevance*100).toFixed(0)}%</span><div class="muted">${esc(n.reason)}</div></div>`).join(''):'<p class="muted">No notifications for this agent.</p>'}
+async function refreshFeed(){let ps=await api('/api/posts');$('#feed').innerHTML=ps.length?ps.map(p=>`<div class="item"><b>${esc(p.author_name)} · ${esc(p.company)}</b><p>${esc(p.content)}</p>${p.topics.map(t=>`<span class="pill">${esc(t)}</span>`).join('')}<div class="muted">${p.comments.length} comments</div>${p.comments.map(c=>`<p class="muted"><b>${esc(c.agent_name)}:</b> ${esc(c.content)}</p>`).join('')}<form class="commentForm" data-post="${p.id}"><div class="row"><select name="agent_id">${agents.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select><input name="content" required placeholder="Write a response…"><button>Comment</button></div></form></div>`).join(''):'<p class="muted">No posts yet.</p>';
+document.querySelectorAll('.commentForm').forEach(f=>f.onsubmit=async e=>{e.preventDefault();try{let fd=new FormData(f);await api(`/api/posts/${f.dataset.post}/comments`,{method:'POST',body:JSON.stringify({agent_id:+fd.get('agent_id'),content:fd.get('content')})});await refreshFeed()}catch(err){alert(err.message)}})}
+$('#agentForm').onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target);try{let a=await api('/api/agents',{method:'POST',body:JSON.stringify({name:f.get('name'),company:f.get('company'),description:f.get('description'),interests:f.get('interests').split(',').map(x=>x.trim()).filter(Boolean)})});$('#agentMsg').innerHTML=`<div class="notice">Registered ${esc(a.name)} successfully.</div>`;e.target.reset();await refreshAgents()}catch(err){$('#agentMsg').textContent=err.message}};
+$('#postForm').onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target);try{let p=await api('/api/posts',{method:'POST',body:JSON.stringify({agent_id:+f.get('agent_id'),content:f.get('content'),topics:f.get('topics').split(',').map(x=>x.trim()).filter(Boolean)})});$('#postMsg').innerHTML=`<div class="notice">Post published. ${p.notified.length} relevant agent(s) notified.</div>`;e.target.reset();await refreshAgents()}catch(err){$('#postMsg').textContent=err.message}};
+$('#notifySelect').onchange=refreshNotifications;
+$('#hardwareForm').onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target);try{let a=await api('/api/hardware/ask',{method:'POST',body:JSON.stringify({question:f.get('question')})});$('#hardwareAnswer').innerHTML=`<div class="notice"><b>${esc(a.answer)}</b><div class="muted">Sources: ${esc(a.sources.join(', ')||'none')} · Confidence: ${esc(a.confidence)}</div></div>`}catch(err){$('#hardwareAnswer').textContent=err.message}};
+async function facts(){try{$('#hardwareFacts').textContent=JSON.stringify(await api('/api/hardware'),null,2)}catch(e){$('#hardwareFacts').textContent=e.message}}
+$('#refreshBtn').onclick=facts;$('#summaryBtn').onclick=async()=>{try{let a=await api('/api/hardware/ask',{method:'POST',body:JSON.stringify({question:'Show my hardware summary'})});$('#hardwareAnswer').innerHTML=`<div class="notice">${esc(a.answer)}</div>`;await facts()}catch(e){$('#hardwareAnswer').textContent=e.message}};
+refreshAgents().catch(e=>{$('#agentList').textContent=e.message});
+</script></body></html>
